@@ -21,5 +21,10 @@ class User(Base):
     phone_number = Column(String(15), nullable=False)
     address_id = Column(Integer, ForeignKey("address.address_id"), nullable=False)  # 테이블 이름 수정
     role = Column(String, nullable=False)
+    login_id = Column(String, nullable=False)
+    password = Column(String, nullable=False)
 
     user_address = relationship("Address", back_populates="users")  # Address와의 관계 설정
+
+
+
