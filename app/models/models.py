@@ -1,6 +1,5 @@
-from sqlalchemy import Integer, String, TIMESTAMP, Column, ForeignKey
+from sqlalchemy import Integer, String, Column, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql.functions import current_timestamp
 from ..database import Base
 
 # Address 테이블 정의
