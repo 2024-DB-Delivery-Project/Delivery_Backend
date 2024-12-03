@@ -156,4 +156,9 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)):
     
     # JWT 생성
     access_token = create_access_token(data={"sub": user.name})
-    return {"access_token": access_token, "token_type": "bearer", "user": user.name}
+    return {"access_token": access_token, 
+            "token_type": "bearer",
+            "user_id": user.user_id,
+            "user": user.name,
+            "role": user.role
+            }
