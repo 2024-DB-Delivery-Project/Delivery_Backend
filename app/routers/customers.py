@@ -2,11 +2,13 @@ from fastapi import APIRouter
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..database import get_db
-from app.models.models import User, Address, Order, Product
+from app.models.models import User, Address, Order, Product, DeliveryInfo
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from sqlalchemy.exc import IntegrityError
+import random
 
 router = APIRouter(
 	prefix="/customers",
@@ -20,6 +22,10 @@ class OrderCreate(BaseModel):
 class BoughtList(BaseModel):
     name: str
     phone_number: str
+
+class GetDeliveryStatus(BaseModel):
+    customer_id : int
+
 
 @router.get("/product_list")
 def get_product(db: Session = Depends(get_db)):
@@ -71,6 +77,25 @@ def buy_product(order: OrderCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_order)
 
+        # DeliveryInfo 생성
+        while True:
+            tracking_number = random.randint(100000, 999999)  # 6자리 랜덤 숫자 생성
+            existing_tracking = db.query(DeliveryInfo).filter(DeliveryInfo.tracking_number == tracking_number).first()
+            if not existing_tracking:
+                break
+ 
+        new_delivery = DeliveryInfo(
+            order_id=new_order.order_id,
+            tracking_number=tracking_number,
+            delivery_status="ready",
+            delivery_address=new_order.address_id,  # Order의 address_id 사용
+            driver_id=None,  # 빈 값
+            logistic_id=None  # 빈 값
+        )
+        db.add(new_delivery)
+        db.commit()
+        db.refresh(new_delivery)
+
         return {
             "msg": "Order created successfully",
             "order_id": new_order.order_id
@@ -81,6 +106,7 @@ def buy_product(order: OrderCreate, db: Session = Depends(get_db)):
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
+
 @router.post("/bought_list")
 def get_bought_list(bought: BoughtList, db: Session = Depends(get_db)):
     try:
@@ -126,6 +152,35 @@ def get_bought_list(bought: BoughtList, db: Session = Depends(get_db)):
         
         return {"orders": order_list}
     
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+@router.post("/delivery_status")
+def get_delivery_status(status: GetDeliveryStatus, db: Session = Depends(get_db)):
+    try:
+        # Order에서 customer_id에 해당하는 주문 ID 조회
+        orders = db.query(Order.order_id).filter(Order.customer_id == status.customer_id).all()
+        if not orders:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orders found for this customer")
+
+        # 주문 ID를 통해 deliveryinfo의 delivery_status 조회
+        order_ids = [order.order_id for order in orders]
+        delivery_statuses = db.query(DeliveryInfo.order_id, DeliveryInfo.delivery_status).filter(
+            DeliveryInfo.order_id.in_(order_ids)
+        ).all()
+
+        if not delivery_statuses:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No delivery info found for these orders")
+
+        # 결과 반환
+        return {
+            "customer_id": status.customer_id,
+            "delivery_statuses": [
+                {"order_id": status.order_id, "delivery_status": status.delivery_status}
+                for status in delivery_statuses
+            ],
+        }
     except Exception as e:
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
