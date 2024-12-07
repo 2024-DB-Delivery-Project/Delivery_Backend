@@ -13,7 +13,7 @@ security = HTTPBearer()
 # JWT 시크릿 키와 알고리즘
 SECRET_KEY = "q!w@e#r$"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
