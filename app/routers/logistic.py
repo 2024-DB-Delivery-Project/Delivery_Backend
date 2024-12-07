@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.auth.auth import get_current_user
 from app.database import get_db
-from app.models.models import Address, DeliveryInfo, Order, User
+from app.models.models import Address, DeliveryInfo, DriverDeliveryInfo, Order, User
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
 
@@ -121,6 +121,12 @@ def assign_driver(request: AssignDriverRequest, db: Session = Depends(get_db)):
         # 3. DeliveryInfo 업데이트
         delivery.driver_id = request.driver_id
         delivery.delivery_status = "Shipped"
+
+        driver_delivery = DriverDeliveryInfo(
+            delivery_id=request.delivery_id,
+            driver_id=request.driver_id
+        )
+        db.add(driver_delivery)
 
         # 4. 변경 사항 커밋
         db.commit()

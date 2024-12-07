@@ -74,9 +74,17 @@ def select_logistic(request: SelectLogisticRequest, db: Session = Depends(get_db
         if not delivery:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found in delivery info")
 
+        # Order 테이블에서 order_id로 해당 데이터 조회
+        order = db.query(Order).filter(Order.order_id == request.order_id).first()
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found in order table")
+
         # logistic_id와 delivery_status 업데이트
-        delivery.logistic_id = 15
+        delivery.logistic_id = 15  # 임의의 값 지정
         delivery.delivery_status = "Processing"
+
+        # Order 테이블의 logistic_id 업데이트
+        order.logistic_id = delivery.logistic_id
 
         # tracking_number가 없을 경우 새로 생성
         if not delivery.tracking_number:
@@ -85,6 +93,7 @@ def select_logistic(request: SelectLogisticRequest, db: Session = Depends(get_db
         # 데이터베이스에 변경 사항 적용
         db.commit()
         db.refresh(delivery)
+        db.refresh(order)
 
         # 성공 응답 반환
         return {
