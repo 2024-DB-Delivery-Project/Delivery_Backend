@@ -13,16 +13,9 @@ router = APIRouter(
     tags=["customers"]
 )
 
-class OrderCreate(BaseModel):
-    customer_id : int
-    product_id: int
-
 class BoughtList(BaseModel):
     name: str
     phone_number: str
-
-class GetDeliveryStatus(BaseModel):
-    customer_id : int
 
 
 @router.get("/product_list")
