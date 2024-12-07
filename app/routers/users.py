@@ -1,25 +1,16 @@
 from fastapi import APIRouter
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from app.models.models import User, Address
 from pydantic import BaseModel
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer
+from ..auth.auth import authenticate_user, create_access_token, get_password_hash
 
 router = APIRouter(
 	prefix="/users",
     tags=["users"]
 )
-
-# JWT 설정
-SECRET_KEY = "q!w@e#r$"  # 강력한 키로 변경
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# OAuth2 설정
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Pydantic 모델 정의 (회원가입 요청 데이터 검증)
 class AddressCreate(BaseModel):
@@ -109,39 +100,6 @@ def signup(user: AddressCreate, db: Session = Depends(get_db)):
         print(f"Exception occurred during address processing: {e}")
         raise HTTPException(status_code=500, detail="Failed to process address")
 
-
-
-# 비밀번호 해싱 설정
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# 비밀번호 해싱
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-# 비밀번호 검증
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-
-# 사용자 조회
-def get_user(db: Session, login_id: str):
-    return db.query(User).filter(User.login_id == login_id).first()
-
-# JWT 생성
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    to_encode.update({"exp": jwt.datetime.utcnow() + jwt.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# 사용자 인증
-def authenticate_user(db: Session, login_id: str, password: str):
-    user = get_user(db, login_id)
-    if not user or not verify_password(password, user.password):
-        return None
-    return user
-
-
 # 로그인 엔드포인트
 @router.post("/login")
 def login(user_data: LoginRequest, db: Session = Depends(get_db)):
@@ -155,7 +113,7 @@ def login(user_data: LoginRequest, db: Session = Depends(get_db)):
         )
     
     # JWT 생성
-    access_token = create_access_token(data={"sub": user.name})
+    access_token = create_access_token({"user_id": user.user_id})
     return {"access_token": access_token, 
             "token_type": "bearer",
             "user_id": user.user_id,

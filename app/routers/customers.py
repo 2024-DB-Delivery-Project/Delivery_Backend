@@ -1,14 +1,12 @@
 from fastapi import APIRouter
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
+from app.auth.auth import get_current_user
 from ..database import get_db
 from app.models.models import User, Address, Order, Product, DeliveryInfo
 from pydantic import BaseModel
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-from sqlalchemy.exc import IntegrityError
-import random
+
 
 router = APIRouter(
 	prefix="/customers",
@@ -51,46 +49,40 @@ def get_product(db: Session = Depends(get_db)):
 
 
 @router.post("/buy")
-def buy_product(order: OrderCreate, db: Session = Depends(get_db)):
+def buy_product(product_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
     try:
-        # 고객 정보 조회
-        customer = db.query(User).filter(User.user_id == order.customer_id).first()
+        # 고객 정보 조회 (user_id 확인)
+        customer = db.query(User).filter(User.user_id == user_id).first()
         if not customer:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized user")
 
         # 제품 정보 조회
-        product = db.query(Product).filter(Product.product_id == order.product_id).first()
+        product = db.query(Product).filter(Product.product_id == product_id).first()
         if not product:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
         # 주소 ID가 없는 유저에 대한 처리
         if not customer.address_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found for this user")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no address")
 
         # 주문 생성
         new_order = Order(
-            customer_id=order.customer_id,
-            product_id=order.product_id,
-            address_id=customer.address_id  # address_id만 저장 (외래 키로)
+            customer_id=user_id,
+            product_id=product_id,
+            address_id=customer.address_id
         )
         db.add(new_order)
         db.commit()
         db.refresh(new_order)
 
         # DeliveryInfo 생성
-        while True:
-            tracking_number = random.randint(100000, 999999)  # 6자리 랜덤 숫자 생성
-            existing_tracking = db.query(DeliveryInfo).filter(DeliveryInfo.tracking_number == tracking_number).first()
-            if not existing_tracking:
-                break
- 
         new_delivery = DeliveryInfo(
             order_id=new_order.order_id,
-            tracking_number=tracking_number,
-            delivery_status="ready",
-            delivery_address=new_order.address_id,  # Order의 address_id 사용
-            driver_id=None,  # 빈 값
-            logistic_id=None  # 빈 값
+            tracking_number=None,
+            delivery_status="Received",
+            delivery_address=new_order.address_id,
+            driver_id=None,
+            logistic_id=None
         )
         db.add(new_delivery)
         db.commit()
@@ -101,11 +93,12 @@ def buy_product(order: OrderCreate, db: Session = Depends(get_db)):
             "order_id": new_order.order_id
         }
 
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
-    # 상세 예외 메시지 출력
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-    
+
 
 @router.post("/bought_list")
 def get_bought_list(bought: BoughtList, db: Session = Depends(get_db)):
@@ -155,12 +148,13 @@ def get_bought_list(bought: BoughtList, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-    
-@router.post("/delivery_status")
-def get_delivery_status(status: GetDeliveryStatus, db: Session = Depends(get_db)):
+
+
+@router.get("/delivery_status")
+def get_delivery_status(db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
     try:
-        # Order에서 customer_id에 해당하는 주문 ID 조회
-        orders = db.query(Order.order_id).filter(Order.customer_id == status.customer_id).all()
+        # Order에서 user_id에 해당하는 주문 ID 조회
+        orders = db.query(Order.order_id).filter(Order.customer_id == user_id).all()
         if not orders:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orders found for this customer")
 
@@ -175,7 +169,7 @@ def get_delivery_status(status: GetDeliveryStatus, db: Session = Depends(get_db)
 
         # 결과 반환
         return {
-            "customer_id": status.customer_id,
+            "user_id": user_id,
             "delivery_statuses": [
                 {"order_id": status.order_id, "delivery_status": status.delivery_status}
                 for status in delivery_statuses
