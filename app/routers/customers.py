@@ -40,6 +40,37 @@ def get_product(db: Session = Depends(get_db)):
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.get("/purchased_products")
+def get_purchased_products(db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
+    try:
+        # 1. Order 테이블에서 user_id로 주문된 product_id 조회
+        orders = db.query(Order.product_id).filter(Order.customer_id == user_id).all()
+        if not orders:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No products found for this customer")
+        
+        # 2. product_id만 리스트로 추출
+        product_ids = [order.product_id for order in orders]
+
+        # 3. Product 테이블에서 product_id로 관련 상품 정보 조회
+        products = db.query(Product).filter(Product.product_id.in_(product_ids)).all()
+
+        # 4. 응답 데이터 구성
+        response = [
+            {
+                "product_id": product.product_id,
+                "name": product.name,
+                "description": product.description,
+                "price": product.price
+            }
+            for product in products
+        ]
+
+        return {"user_id": user_id, "purchased_products": response}
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @router.post("/buy")
 def buy_product(product_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
