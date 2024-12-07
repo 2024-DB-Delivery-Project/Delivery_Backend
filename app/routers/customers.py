@@ -40,6 +40,7 @@ def get_product(db: Session = Depends(get_db)):
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
 @router.get("/purchased_products")
 def get_purchased_products(db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
     try:
