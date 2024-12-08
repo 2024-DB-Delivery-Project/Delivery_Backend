@@ -46,8 +46,10 @@ def get_purchased_products(db: Session = Depends(get_db), user_id: int = Depends
     try:
         # 1. Order 테이블에서 user_id로 주문된 product_id 조회
         orders = db.query(Order.product_id).filter(Order.customer_id == user_id).all()
+        
+        # 주문이 없을 경우 빈 리스트 반환
         if not orders:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No products found for this customer")
+            return {"user_id": user_id, "purchased_products": []}
         
         # 2. product_id만 리스트로 추출
         product_ids = [order.product_id for order in orders]

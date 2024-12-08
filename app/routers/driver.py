@@ -15,7 +15,11 @@ class UpdateDeliveryStatusRequest(BaseModel):
     delivery_id: int
 
 @router.get("/deliveries")
-def get_driver_deliveries(db: Session = Depends(get_db), driver_id: int = Depends(get_current_user)):
+def get_driver_deliveries(
+    db: Session = Depends(get_db),
+    driver_id: int = Depends(get_current_user),
+    sort_by: str = "delivery_id"
+):
     try:
         # driver_id로 driverdeliveryinfo 조회
         driver_deliveries = (
@@ -26,7 +30,7 @@ def get_driver_deliveries(db: Session = Depends(get_db), driver_id: int = Depend
         )
 
         if not driver_deliveries:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No deliveries found for this driver")
+            return {"driver_id": driver_id, "deliveries": []}
 
         # 응답 데이터 구성
         response = []
@@ -61,6 +65,14 @@ def get_driver_deliveries(db: Session = Depends(get_db), driver_id: int = Depend
                 "customer_phone": customer_phone,
                 "detailed_address": detailed_address
             })
+
+        # 정렬 기준에 따라 정렬
+        if sort_by == "customer_name":
+            response = sorted(response, key=lambda x: x["customer_name"])
+        elif sort_by == "detailed_address":
+            response = sorted(response, key=lambda x: x["detailed_address"])
+        else:  # 기본 정렬: delivery_id
+            response = sorted(response, key=lambda x: x["delivery_id"])
 
         return {"driver_id": driver_id, "deliveries": response}
 

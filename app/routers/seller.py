@@ -36,8 +36,19 @@ def get_seller_orders(db: Session = Depends(get_db), user_id: int = Depends(get_
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orders found for this seller's products")
 
         # 3. JSON 형식으로 데이터 구성
-        response = [
-            {
+        response = []
+        for order in orders:
+            # 주문에 해당하는 제품 조회
+            product = next((p for p in products if p.product_id == order.product_id), None)
+            if not product:
+                continue
+
+            # 주문에 해당하는 배송 정보 조회
+            delivery_info = db.query(DeliveryInfo).filter(DeliveryInfo.order_id == order.order_id).first()
+            tracking_number = delivery_info.tracking_number if delivery_info else None
+
+            # 응답 데이터 추가
+            response.append({
                 "order_id": order.order_id,
                 "customer_id": order.customer_id,
                 "logistic_id": order.logistic_id,
@@ -47,16 +58,16 @@ def get_seller_orders(db: Session = Depends(get_db), user_id: int = Depends(get_
                     "name": product.name,
                     "description": product.description,
                     "price": product.price
-                }
-            }
-            for order in orders
-            for product in products if product.product_id == order.product_id
-        ]
+                },
+                "tracking_number": tracking_number
+            })
+
         return {"seller_id": user_id, "orders": response}
 
     except Exception as e:
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 
 def generate_unique_tracking_number(db: Session) -> int:

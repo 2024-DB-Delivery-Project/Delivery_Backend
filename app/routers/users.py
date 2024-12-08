@@ -34,23 +34,29 @@ class LoginRequest(BaseModel):
 # 회원가입 API 
 @router.post("/signup")
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    
     try:
+        # login_id 중복 확인
+        existing_user = db.query(User).filter(User.login_id == user.login_id).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Login ID already exists")
+
+        # address_id 유효성 확인
         address = db.query(Address).filter(Address.address_id == user.address_id).first()
         if not address:
             raise HTTPException(status_code=400, detail="Invalid address_id")
         
-        hased_password = get_password_hash(user.password)
+        # 비밀번호 해싱
+        hashed_password = get_password_hash(user.password)
 
-        # 존재하지 않는 경우 새로 추가 
+        # 새로운 사용자 생성
         new_user = User(
             name=user.name, 
             phone_number=user.phone_number, 
             role=user.role,
             address_id=user.address_id,
             login_id=user.login_id,
-            password=hased_password
-            )
+            password=hashed_password
+        )
         db.add(new_user) 
         db.commit()
         db.refresh(new_user)
@@ -63,8 +69,9 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     except Exception as e:
         # 에러 발생 시 트랜잭션 롤백
         db.rollback()
-        print(f"Exception occurred during address processing: {e}")
-        raise HTTPException(status_code=500, detail=f"{e}, Failed to process address")
+        print(f"Exception occurred during signup processing: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process signup")
+
 
 # 회원가입시, 주소 정보 추가 API
 @router.post("/signup/address")
